@@ -1,3 +1,5 @@
+setwd("/Users/user/Documents/R_Madrid/App/")
+
 library(shiny)
 library(leaflet)
 library(rgdal)
@@ -9,7 +11,7 @@ createMap <- function(){
   
   map <- leaflet() %>% 
     addProviderTiles("Stamen.TerrainBackground") %>% 
-    addPolygons(data=shapeData,weight=1,col = 'black') %>% 
+    addPolygons(data=shapeData,weight=1,col = 'grey') %>% 
     setView(lng = -3.8196207,
             lat = 40.4678698,
             zoom = 10)
@@ -33,7 +35,7 @@ shinyUI(fluidPage(
                     value = FALSE)
     )
   ),
-  tabPanel("Data"),
+  tabPanel("Correlation"),
   tabPanel("blub")
 
 )
