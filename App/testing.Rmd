@@ -1,0 +1,27 @@
+---
+title: "testing"
+author: "Viktor Gorte"
+date: "25 11 2017"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+library(rgdal)
+#madridShape <- readOGR("./madridshapefile/", "Distritos")
+#summary(madridShape)
+
+
+directions <- readOGR("./directions/", "directions")
+summary(directions)
+
+is.projected(directions)
+proj4string(directions) <- CRS("+init=epsg:3857")
+plot(directions, axes=TRUE)
+
+coordinates(directions)
+bbox(directions)
+
+
+```
