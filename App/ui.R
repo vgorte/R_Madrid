@@ -8,9 +8,6 @@ shinyUI(
           leafletOutput("mymap"),
           checkboxInput(inputId = "direction",
                         label = strong("Traffic Directions"),
-                        value = FALSE),
-          checkboxInput(inputId = "madrid",
-                        label = strong("Madrid Outlines"),
                         value = FALSE)
         )
       ),

@@ -11,18 +11,14 @@ shinyServer(function(input, output, session) {
     return(directions_longlat)
   })
   
-  madridOutline<- eventReactive(input$madrid, {
     madridShape <- readOGR("./madridshapefile/", "Distritos")
     madridShape <- spTransform(madridShape, CRS("+proj=longlat +datum=WGS84 +no_defs"))
-    return(madridShape)
-  })
+
     
-  visibilityMadridOutlines<- eventReactive(input$madrid, {
-    if(input$madrid == TRUE){
-      print("on")
-      return(0.1)
+  visibilityDirections<- eventReactive(input$direction, {
+    if(input$direction == TRUE){
+      return(1)
     }else{
-      print("off")
       return(0)
     }
   })
@@ -32,9 +28,8 @@ shinyServer(function(input, output, session) {
       addProviderTiles(providers$CartoDB.Positron,
                        options = providerTileOptions(noWrap = )
       ) %>%
-      addPolygons(data=direction(),weight=1,col = 'red') %>% 
-      addPolygons(data=madridOutline(),weight=visibilityMadridOutlines(),col = 'black') %>% 
-      
+      addPolygons(data=direction(),weight=visibilityDirections(),col = 'red') %>% 
+      addPolygons(data=madridShape,weight=0.6,col = 'black') %>% 
       setView(lng = -3.8196207,
               lat = 40.4678698,
               zoom = 10)
