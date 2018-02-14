@@ -1,0 +1,115 @@
+---
+title: "Reading MACC and Traffic Count Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load and inspect a NetCDF file
+
+To work with netCDF files, the package 'ncdf4' can be used (alternatively, you might want to check 'RNetCDF').
+`nc_open` opens the file and shows its properties/content. 
+The 'raster' package provides an easy way to work with the data. The function `stack` can be used to directly load a netcdf file into a raster stack.
+
+```{r}
+library(ncdf4)
+library(raster)
+nc <- nc_open("MACC/SURF_ENS_2012022400.nc")
+No2 <- stack("MACC/SURF_ENS_2012022400.nc", varname="no2_conc")
+plot(No2)
+```
+
+However, that might not work in all cases. Trying the same with a netcdf file I downloaded from the Macc webpage gives an error.
+
+```{r, eval=F}
+library(ncdf4)
+getwd()
+nc <- nc_open("MACC/SURF_ENS_2012022400.nc")
+No2 <- stack("MACC/SURF_ENS_2012022400.nc", varname="no2_conc")
+```
+
+
+Alternative:`ncvar_get` gives an array of values of a certain variable, here 'no2_conc'. It has 4 dimensions, the third is the level (Surface, 50m 250m, 500m, 1000m, 2000m, 3000m and 5000m), the 4th is time (hours).
+However, rows and columns need to be swapped. The following is probably not necessary for the MACC data provided in the sciebo folder, because `stack()` works for those!
+
+```{r}
+nc <- nc_open("MACC/SURF_ENS_2012022400.nc")
+No2 <- ncvar_get(nc,"no2_conc")
+No2 <- aperm(No2,c(2,1,3)) #swap x and y axis
+```
+
+To convert the array into a raster brick (with one layer for each time step, i.e. 24 layers for one day of hourly measurements), the function `brick` can be used.
+When loading a netcdf file into a raster brick this way, the extent and crs need to be defined manually. Here, information from the `ncdf4` object can be used.
+
+```{r}
+library(raster)
+#get only surface level as 3dimensional array and convert to RasterBrick
+No2.r <- brick
+plot(No2.r)
+#set extent using information from netcdf file
+xmin(No2.r)<-nc$dim$longitude$vals[1]-360
+xmax(No2.r)<-nc$dim$longitude$vals[length(nc$dim$longitude$vals)]
+ymin(No2.r)<-nc$dim$latitude$vals[length(nc$dim$latitude$vals)]
+ymax(No2.r)<-nc$dim$latitude$vals[1]
+
+#set CRS
+proj4string(No2.r) <- "+proj=longlat +datum=WGS84 "
+
+
+library(mapview)
+plot(No2[[12]])
+test <- No2[[12]]
+coordinates(test)
+mapview(rasterToPolygons(test))
+```
+
+
+## Load and inspect data from traffic intensity stations
+
+The traffic intensity data is available as csv file containing (among others) the id of stations and the traffic counts. The location of the stations is available in a separate file (csv or shapefile) and needs to be joined with the count data.
+
+```{r}
+#read data of traffic count stations, here August 2017
+counts <- read.csv("08-2017.csv", sep = ";", skipNul = TRUE)
+#read locations of stations
+locations <- read.csv("traffic_locations/pmed_trafico.csv", sep = ";", skipNul = TRUE)
+traffic <- merge.data.frame(counts,locations,by.x="identif",by.y = "cod_cent")
+class(traffic)
+coordinates(traffic)  <- c("st_x","st_y")
+class(traffic)
+```
+
+By specifying the coordinates, the data frame is transformed into a `SpapialPointsDataFrame`. However, we have multiple measurements at each location (every 15 minutes), so we want a format that facilitates handling the time dimension. We can convert the `SpatialPointsDataFrame` into a `SpaceTimeFullDataFrame`.
+
+```{r}
+library(spacetime)
+#convert time value (fecha) from factor to POSIXct
+traffic$time <- as.POSIXct(traffic$fecha) 
+#create spacetime full data frame (via spacetime irregular data frame, to cope with NAs)
+trafficSTI <- STIDF(SpatialPoints(coords = coordinates(traffic)), traffic$time, data = traffic@data)
+trafficSTF <- as(trafficSTI, "STFDF")
+```
+
+This facilitates e.g. selection in space and time
+```{r}
+trafficSTF[1,1:12,"intensidad"] #select first spatial feature (station), time instances 1 to 12, and variable "intensidad"
+trafficSTF[1,"2017-08-01 01:15:00::2017-08-01 02:00:00", "intensidad"] #select first spatial feature (station), time instances between 01:15:00 and 02:00:00 on 1 August 2017, and variable "intensidad"
+
+```
+
+You can also assign names to the rows of the `STFDF` to enable selection of stations by names or ids.
+
+```{r}
+row.names(trafficSTF@sp)<-trafficSTF@data$identif[1:length(trafficSTF@sp)] #assign rownames, here taken from coloumn "identif"
+trafficSTF["05FT10PM01","2017-08-01 01:15:00::2017-08-01 02:00:00", "intensidad"] #select station 28045, time instances between 01:15:00 and 02:00:00 on 1 August 2017, and variable "intensidad"
+```
+
+We can also set the CRS of the data.
+```{r}
+proj4string(trafficSTF) <- "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0"
+coordinates(trafficSTF)
+
+mapview(rasterToPolygons(trafficSTF@sp))
+  ```
